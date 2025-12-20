@@ -1,89 +1,50 @@
-import glob #Use only for viewing downloaded file name
-import pandas as pd #start to use: DataFrames, cleaning, loading, saving (Use for cleaning, ABT, and ML)
-import numpy as np #start to use: Numeric ops, arrays, later ML steps
+# Importing required libraries
+# Install sklearn if needed
+# !pip install -q scikit-learn joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-"""# Data Extraction, (Kaggle to Raw Files) - Week 11"""
-
-# 1) Upload the Kaggle API key
+import pandas as pd
+import numpy as np
+import kagglehub
+import joblib
+import glob
+import time
 import os
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score,
+    f1_score, classification_report, confusion_matrix,
+    mean_squared_error, r2_score
+)
+from sklearn.inspection import permutation_importance
 
-src = "/content/kaggle.json" # Path where the file already exists (from the left file explorer)
+# Download latest version
+download_dir = kagglehub.dataset_download("whenamancodes/student-performance")
 
-os.makedirs("/root/.kaggle", exist_ok=True) # Create the hidden Kaggle directory
-os.system(f"cp {src} /root/.kaggle/kaggle.json") # Copy the file into the kaggle folder
-os.system("chmod 600 /root/.kaggle/kaggle.json") # Fix permissions
-
-print("Kaggle API key successfully loaded and configured.")
-
-# 2) Save the key in the hidden .kaggle folder so the Kaggle CLI can use it
-# !mkdir -p ~/.kaggle
-# !cp kaggle.json ~/.kaggle/
-# !chmod 600 ~/.kaggle/kaggle.json
-
-# 3) Create the project folder structure for raw, cleaned, processed data, models and figures
+# Create the project folder structure for raw, cleaned, processed data, models and figures
 # !mkdir -p data/raw data/cleaned data/processed models figures
-
-# 4) Download the Student Performance dataset from Kaggle and unzip it into data/raw
-import os
-import json
-
-# Ensure the Kaggle API key is available
-kaggle_config_path = os.path.expanduser("~/.kaggle/kaggle.json")
-# Use provided Kaggle credentials
-kaggle_credentials = {
-    "username": "amrinyanya",
-    "key": "1543c939014a2683d344465089575b91"
-}
-
-# Set credentials as environment variables
-os.environ["KAGGLE_USERNAME"] = kaggle_credentials["username"]
-os.environ["KAGGLE_KEY"] = kaggle_credentials["key"]
-
-# Explicitly load credentials and set environment variables if the file exists
-if os.path.exists(kaggle_config_path):
-    try:
-        with open(kaggle_config_path, "r") as f:
-            kaggle_creds = json.load(f)
-            os.environ["KAGGLE_USERNAME"] = kaggle_creds.get("username", "")
-            os.environ["KAGGLE_KEY"] = kaggle_creds.get("key", "")
-        print("Kaggle credentials loaded from ~/.kaggle/kaggle.json and set as environment variables.")
-    except json.JSONDecodeError:
-        print(f"Error: '{kaggle_config_path}' is not a valid JSON file. Please check its content.")
-    except Exception as e:
-        print(f"An unexpected error occurred while loading Kaggle credentials: {e}")
-else:
-    print(f"Kaggle config file not found at '{kaggle_config_path}'. Please ensure it is uploaded and configured (e.g., via cell 'fn1tQhfBS8rA').")
-
-# Now attempt to download the dataset
-# !kaggle datasets download -d whenamancodes/student-performance --unzip -p data/raw
-
-# 5) List the raw files that has been downloaded
+os.makedirs("data/raw", exist_ok=True)
+os.makedirs("data/cleaned", exist_ok=True)
+os.makedirs("data/processed", exist_ok=True)
+os.makedirs("models", exist_ok=True)
+os.makedirs("figures", exist_ok=True)
 glob.glob("data/raw/*.csv")
 
-# 6) Check what type of files these really are (they turn out to be Excel workbooks)
-# !file data/raw/Maths.csv
-# !file data/raw/Portuguese.csv
-
-# 7) Create subfolders to store the extracted Excel contents
+# Create subfolders to store the extracted Excel contents
 # !mkdir -p data/raw/maths data/raw/portuguese
-
-# 8) Unzip the Excel workbooks into their respective folders
-# !unzip -o data/raw/Maths.csv -d data/raw/maths
-# !unzip -o data/raw/Portuguese.csv -d data/raw/portuguese
-
-# 9) Show the extracted contents so we can see the true internal structure (xlsx files)
-# !ls data/raw/maths
-# !ls data/raw/portuguese
-
-mat = pd.read_excel("data/raw/Maths.csv")
-por = pd.read_excel("data/raw/Portuguese.csv")
+os.makedirs("data/raw/maths", exist_ok=True)
+os.makedirs("data/raw/portuguese", exist_ok=True)   
+mat = pd.read_excel(os.path.join(download_dir, "Maths.csv"))
+por = pd.read_excel(os.path.join(download_dir, "Portuguese.csv"))
+mat.to_csv("data/raw/maths/Maths.csv", index=False)
+por.to_csv("data/raw/portuguese/Portuguese.csv", index=False)
 
 mat.head(), por.head()
-
-"""# Data Cleaning & Preprocessing - Week 12"""
-
 # 1) Add course labels and combine both datasets
 mat["course"] = "math"
 por["course"] = "portuguese"
@@ -120,10 +81,6 @@ df[categorical_cols] = df[categorical_cols].fillna("unknown")
 clean_path = "data/cleaned/student_performance_clean.csv"
 df.to_csv(clean_path, index=False)
 print(f"Cleaned dataset saved to: {clean_path}")
-
-"""# Data Modeling, Transformation & Analytical Base Table - Week 12"""
-
-# Reload cleaned data (for reproducibility)
 df = pd.read_csv("data/cleaned/student_performance_clean.csv")
 
 # 1) Feature engineering
@@ -145,21 +102,6 @@ abt.to_csv(abt_path, index=False)
 print(f"ABT saved to: {abt_path}")
 print("ABT shape:", abt.shape)
 abt.head()
-
-# Install sklearn
-# !pip install -q scikit-learn joblib
-
-from sklearn.model_selection import train_test_split
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.pipeline import Pipeline
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score,
-    f1_score, classification_report, confusion_matrix
-)
-import joblib
 
 # 1) Load ABT
 abt = pd.read_csv("data/processed/abt_student_performance.csv")
@@ -283,17 +225,6 @@ rf_trained       = eval_model("Random Forest",       rf_clf,     X_train, y_trai
 joblib.dump(rf_trained, "models/rf_pass_prediction.pkl")
 print("Saved Random Forest model to models/rf_pass_prediction.pkl")
 
-"""# Pipeline Diagram & Reproducibility - Week 13
-
-Reproducible Data Engineering Pipeline.
-The project follows a fully reproducible pipeline implemented in Google Colab. Data ingestion is performed via the Kaggle API, with credentials stored in kaggle.json and all raw files written to /data/raw. Cleaning and preprocessing scripts read the raw student performance files, handle missing values, engineer additional features (average previous grade, grade trend, high absence indicator), and save a cleaned dataset in /data/cleaned. The Analytical Base Table (ABT) is constructed in a separate step and stored in /data/processed/abt_student_performance.csv.
-
-Model training (Logistic Regression and Random Forest) is encapsulated in scikit-learn Pipeline objects that bundle preprocessing (scaling and one-hot encoding) with the estimator, ensuring that the same transformations are applied at training and inference time. Evaluation metrics, feature importance tables, and subgroup fairness summaries are exported as CSV files to the /figures directory. Trained models are serialized to /models using joblib. With this structure, re-running the entire notebook from top to bottom will regenerate all intermediate datasets, models, and evaluation outputs in a consistent way.
-
-# Models and Diagram - Week 13
-
-RF + LR models trained"""
-
 # Use the same 'preprocess' ColumnTransformer with Random Forest
 # (numeric scaler + one-hot encoding for categorical features)
 
@@ -307,7 +238,6 @@ lr_trained = lr_clf.fit(X_train, y_train)
 print("Logistic Regression pipeline trained.")
 
 #Add Model Comparison Table (LR vs RF)
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 def evaluate_model(name, y_true, y_pred):
     return {
@@ -328,7 +258,7 @@ results = [
 ]
 
 results_df = pd.DataFrame(results)
-display(results_df)
+# display(results_df)
 
 results_df.to_csv("figures/model_comparison.csv", index=False)
 print("Saved model comparison table to figures/model_comparison.csv")
@@ -350,7 +280,7 @@ all_models_comparison_df = pd.DataFrame([
     academic_lr_metrics
 ])
 
-display(all_models_comparison_df)
+# display(all_models_comparison_df)
 
 comparison_all_filename = "figures/model_comparison_all_models.csv"
 all_models_comparison_df.to_csv(comparison_all_filename, index=False)
@@ -364,12 +294,7 @@ abt.to_csv("data/processed/abt_student_performance.csv", index=False)
 
 print("Saved cleaned datasets and ABT to data/cleaned and data/processed")
 
-"""Regression model trained"""
-
 #Regression Pipeline Creation
-
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, r2_score
 
 #Identify categorical & numeric columns
 categorical_cols = X_train.select_dtypes(include=["object"]).columns
@@ -413,10 +338,6 @@ print("R²  :", r2)
 joblib.dump(reg_pipe, "models/linear_regression_model.pkl")
 print("Saved regression pipeline model → models/linear_regression_model.pkl")
 
-"""Feature Importance"""
-
-from sklearn.inspection import permutation_importance
-
 #Permutation Feature Importance
 print("=== Permutation Feature Importance (Random Forest) ===")
 
@@ -456,14 +377,12 @@ fi_df = pd.DataFrame({
 }).sort_values("importance_mean", ascending=False)
 
 fi_top15 = fi_df.head(15)
-display(fi_top15)
+# display(fi_top15)
 
 fi_df.to_csv("figures/feature_importance_rf_full.csv", index=False)
 fi_top15.to_csv("figures/feature_importance_rf_top15.csv", index=False)
 
 print("Saved feature importance tables to figures/")
-
-"""Fairness"""
 
 #Fairness: subgroup metrics
 def subgroup_metrics(y_true, y_pred, group_series, group_name):
@@ -498,16 +417,16 @@ fair_schoolsup = subgroup_metrics(y_test, y_pred_rf, schoolsup, "schoolsup")
 fair_famsup = subgroup_metrics(y_test, y_pred_rf, famsup, "famsup")
 
 print("\n=== Fairness by sex ===")
-display(fair_sex)
+# display(fair_sex)
 
 print("\n=== Fairness by maternal education (Medu) ===")
-display(fair_Medu)
+# display(fair_Medu)
 
 print("\n=== Fairness by school support (schoolsup) ===")
-display(fair_schoolsup)
+# display(fair_schoolsup)
 
 print("\n=== Fairness by family support (famsup) ===")
-display(fair_famsup)
+# display(fair_famsup)
 
 fair_sex.to_csv("figures/fairness_by_sex.csv", index=False)
 fair_Medu.to_csv("figures/fairness_by_Medu.csv", index=False)
@@ -516,11 +435,7 @@ fair_famsup.to_csv("figures/fairness_by_famsup.csv", index=False)
 
 print("Saved fairness tables to figures/")
 
-"""# Figures and Tables - Week 14
-
-### **RQ1**: Can integrating multiple data sources (academic, behavioral, demographic, LMS) improve the predictive accuracy of academic performance compared to single-source models?
-"""
-
+# Rq1
 #Table 1.1: Prediction Accuracy Comparison
 
 # Filter for Random Forest models
@@ -552,17 +467,14 @@ lr_improvement = pd.DataFrame({
 # Combine into a single DataFrame
 comparison_improvement_df = pd.concat([rf_improvement, lr_improvement], ignore_index=True)
 comparison_improvement_df[['Accuracy Improvement', 'Precision Improvement', 'Recall Improvement', 'F1-Score Improvement']] = comparison_improvement_df[['Accuracy Improvement', 'Precision Improvement', 'Recall Improvement', 'F1-Score Improvement']] * 100
-
-display(comparison_improvement_df)
-
-# Save the comparison table to a CSV file
+# display(comparison_improvement_df)
 comparison_filename = "figures/model_improvement_comparison.csv"
+comparison_filename = "figures/model_improvement_comparison.pdf"
 comparison_improvement_df.to_csv(comparison_filename, index=False)
-print(f"Saved model improvement comparison table to {comparison_filename}")
+print("Table 1.1 Caption: Model Performance Comparison between Random Forest and Logistic Regression")
 
 #Figure 1.1: Performance Comparison: Single vs Multi-Source Models
-import matplotlib.pyplot as plt
-import seaborn as sns
+
 # Melt the DataFrame to a long format for plotting
 melted_df = all_models_comparison_df.melt(
     id_vars=['model'],
@@ -570,55 +482,36 @@ melted_df = all_models_comparison_df.melt(
     var_name='metric',
     value_name='score'
 )
-
-# Convert scores to a 100-scale
 melted_df['score'] = melted_df['score'] * 100
-
-# Create the grouped bar chart
 plt.figure(figsize=(12, 7))
 sns.barplot(x='metric', y='score', hue='model', data=melted_df, palette='husl')
-
-# Add title and labels
-plt.title('Model Performance Comparison: Multi-Source vs. Single-Source', fontsize=16)
+plt.title('Figure 1.1 Model Performance Comparison: Multi-Source vs. Single-Source', fontsize=16)
 plt.xlabel('Metric', fontsize=12)
 plt.ylabel('Score (%)', fontsize=12) # Updated y-axis label
 plt.ylim(80, 100) # Set y-axis limits to 100-scale
-
-# Add legend
 plt.legend(title='Model', bbox_to_anchor=(1.05, 1), loc='upper left')
-
-# Adjust layout
 plt.tight_layout()
-
-# Save the figure
 figure_all_models_filename = "figures/performance_comparison_all_models.pdf"
 plt.savefig(figure_all_models_filename)
 print(f"Saved performance comparison plot to {figure_all_models_filename}")
-
-# Display the plot
 plt.show()
+print("Figure 1.1 Caption: Model Performance Comparison between Multi-Source and Single-Source predictions")
 
 #Figure 1.2: Grade scatter plot Analysis
 
-# Create the scatter plot
 plt.figure(figsize=(10, 6))
-sns.scatterplot(x='G1', y='G2', hue='target_pass', data=abt, palette='coolwarm', s=100, alpha=0.7)
-
-# Add title and labels
-plt.title('G1 vs G2 Grades, Colored by Pass/Fail Status', fontsize=16)
+sns.scatterplot(x='G1', y='G2', hue='target_pass', data=abt, palette='tab10', s=100, alpha=0.7)
+plt.title('Figure 1.2 G1 vs G2 Grades, Colored by Pass/Fail Status', fontsize=16)
 plt.xlabel('First Period Grade (G1)', fontsize=12)
 plt.ylabel('Second Period Grade (G2)', fontsize=12)
 plt.legend(title='Target Pass (1=Pass, 0=Fail)')
 plt.grid(True, linestyle='--', alpha=0.6)
 plt.tight_layout()
-
-# Save the figure
 scatter_plot_filename = "figures/g1_g2_pass_fail_scatter.pdf"
 plt.savefig(scatter_plot_filename)
 print(f"Saved scatter plot to {scatter_plot_filename}")
-
-# Display the plot
 plt.show()
+print("Figure 1.2 Caption: Model Performance Comarison between Multi-Source and Single-Source predictions")
 
 #Figure 1.3: Prediction Accuracy Comparison Bar graph
 
@@ -629,148 +522,133 @@ melted_improvement_df = comparison_improvement_df.melt(
     var_name='Metric',
     value_name='Improvement (%)'
 )
-
 plt.figure(figsize=(12, 7))
 sns.barplot(x='Metric', y='Improvement (%)', hue='Model Type', data=melted_improvement_df, palette='viridis')
-
-plt.title('Model Performance Improvement: Multi-Source vs. Single-Source', fontsize=16)
+plt.title('Figure 1.3 Model Performance Improvement: Multi-Source vs. Single-Source', fontsize=16)
 plt.xlabel('Metric', fontsize=12)
 plt.ylabel('Improvement (%)', fontsize=12)
-plt.axhline(0, color='black', linewidth=0.8) # Add a horizontal line at 0 for reference
+plt.axhline(0, color='black', linewidth=0.8)
 plt.legend(title='Model Type', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-
-# Save the figure
 figure_improvement_filename = "figures/performance_improvement.pdf"
 plt.savefig(figure_improvement_filename)
 print(f"Saved performance improvement plot to {figure_improvement_filename}")
-
 plt.show()
+print("Figure 1.3 Caption: Model Performance imporvement of Multi-Source over Single-Source predictions")
 
 #Figure 1.4: Study Time vs Final grade
 
-# Create the box plot
 plt.figure(figsize=(10, 6))
 sns.boxplot(x='studytime', y='G3', data=df, palette='viridis', hue='studytime', legend=False)
-
-# Set title and labels
-plt.title('Final Grades (G3) by Study Time Categories', fontsize=16)
+plt.title('Figure 1.4 Final Grades by Study Time Categories', fontsize=16)
 plt.xlabel('Study Time (1: <2h, 2: 2-5h, 3: 5-10h, 4: >10h)', fontsize=12)
 plt.ylabel('Final Grade (G3)', fontsize=12)
-
-# Save the plot
 boxplot_filename = "figures/g3_by_studytime_boxplot.pdf"
 plt.savefig(boxplot_filename)
 print(f"Box plot saved to {boxplot_filename}")
-
-# Display the plot
 plt.show()
+print("Figure 1.4 Caption: Grade and Study time correlation")
 
-"""### **RQ2**: How do parental education levels and family support systems collectively influence final grades and does this relationship differ between students from urban versus rural backgrounds?
-
-"""
-
+# RQ2
 #Figure 2.1: Adaptability Matrix Across Educational Settings
 
 grouped_g3_mean = df.groupby(['Medu', 'Fedu', 'famsup', 'Pstatus'])['G3'].mean().reset_index()
-display(grouped_g3_mean)
-# Aggregate for both Fedu and Medu
+# display(grouped_g3_mean)
 mean_g3_by_fedu = grouped_g3_mean.groupby('Fedu')['G3'].mean().reset_index()
 mean_g3_by_medu = grouped_g3_mean.groupby('Medu')['G3'].mean().reset_index()
-
-# Add a column to identify the education type
 mean_g3_by_fedu['Education Type'] = 'Paternal'
 mean_g3_by_medu['Education Type'] = 'Maternal'
 
 # Rename columns for consistency
 mean_g3_by_fedu.rename(columns={'Fedu': 'Education Level'}, inplace=True)
 mean_g3_by_medu.rename(columns={'Medu': 'Education Level'}, inplace=True)
-
-# Combine the dataframes
 combined_data = pd.concat([mean_g3_by_fedu, mean_g3_by_medu], ignore_index=True)
 
 # Create the combined plot
 plt.figure(figsize=(10, 6))
 sns.barplot(x='Education Level', y='G3', hue='Education Type', data=combined_data, palette='colorblind')
-plt.title('Mean Grade by Parental Education Level')
+plt.title('Figure 2.1 Mean Grade by Parental Education Level')
 plt.xlabel('Education Level (0: none, 1: primary, 2: 5th to 9th, 3: secondary, 4: higher)')
 plt.ylabel('Mean Final Grade (G3)')
 plt.legend(title='Education Type')
 plt.tight_layout()
-plt.savefig('figures/mean_g3_by_parental_education.pdf')
-plt.savefig('figures/mean_g3_by_parental_education.png')
+figure_all_models_filename = "figures/mean_g3_by_parental_education.pdf"
+plt.savefig(figure_all_models_filename)
 plt.show()
+print("Figure 2.1 Caption: Combined bar plot for Mean Grade by Parental Education")
 
-print("Combined bar plot for Mean G3 by Parental Education generated and saved.")
+#Figure 2.2: Academic Resilience Predict if students will get a high grade despite having parents with low education levels
+df_at_risk = abt[(abt['Medu'] <= 2) | (abt['Fedu'] <= 2)].copy()
 
-#Figure 2.2: Overall mean grade for urban and rural students
+# Define "Resilient" (High Final Grade: G3 >= 14) & feature selection
+df_at_risk['resilient'] = (df_at_risk['G3'] >= 14).astype(int)
+features = ['address', 'famsup', 'famrel', 'studytime', 'failures', 'schoolsup', 'internet', 'absences']
+X = df_at_risk[features]
+y = df_at_risk['resilient']
+X = pd.get_dummies(X, drop_first=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
 
-# Group by address and calculate the mean of G3
-mean_g3_by_address = df.groupby('address')['G3'].mean().reset_index()
+# Model Training
+clf = RandomForestClassifier(n_estimators=100, random_state=42)
+clf.fit(X_train, y_train)
+y_pred = clf.predict(X_test)
+print(f"Model Accuracy: {accuracy_score(y_test, y_pred):.2%}")
+print(classification_report(y_test, y_pred))
 
-# Create the bar plot
-plt.figure(figsize=(8, 5))
-sns.barplot(x='address', y='G3', data=mean_g3_by_address, palette='viridis', hue='address', legend=False)
-
-# Set title and labels
-plt.title('Overall Mean G3 by Student Address', fontsize=16)
-plt.xlabel('Address (U: Urban, R: Rural)', fontsize=12)
-plt.ylabel('Mean Final Grade (G3)', fontsize=12)
-
-# Ensure tight layout
-plt.tight_layout()
-
-# Save the plot
-plot_filename = 'figures/overall_mean_g3_by_address.pdf'
-plt.savefig(plot_filename)
-print(f"Bar plot saved to {plot_filename}")
-
-# Display the plot
+# Visualize Key Drivers of Resilience
+importances = pd.Series(clf.feature_importances_, index=X.columns).sort_values(ascending=False)
+plt.figure(figsize=(10, 6))
+sns.barplot(x=importances.values, y=importances.index, palette='viridis')
+plt.title('Figure 2.2 Key Drivers of Academic Resilience (Low Parental Ed Group)')
+plt.xlabel('Importance Score')
+plt.savefig('figures/key_drivers_of_resilience.pdf')
 plt.show()
+print("Figure 2.2 Caption: Key Drivers of Academic Resilience (Low Parental Education Group)")
 
-#Figure 2.3: Mean Grade by Parental Status
+#Figure 2.3: Support Impact Prediction
 
-# Aggregate for Pstatus
-mean_g3_by_pstatus = grouped_g3_mean.groupby('Pstatus')['G3'].mean().reset_index()
+df_supported = abt[abt['famsup'] == 'yes'].copy()
 
-# Plot for Pstatus
-plt.figure(figsize=(8, 5))
-sns.barplot(x='Pstatus', y='G3', data=mean_g3_by_pstatus, palette='viridis', hue='Pstatus', legend=False)
-plt.title('Mean G3 by Parental Status (Pstatus)')
-plt.xlabel('Parental Status (T: living together, A: apart)')
-plt.ylabel('Mean Final Grade (G3)')
-plt.tight_layout()
-plt.savefig('figures/mean_g3_by_pstatus.pdf')
-plt.savefig('figures/mean_g3_by_pstatus.png') # Save as PNG
+# Student improvement condition (Grade Trend > 0) & feature selection
+df_supported['improved'] = (df_supported['grade_trend'] > 0).astype(int)
+features = ['Medu', 'Fedu', 'address', 'famrel', 'studytime', 'failures', 'absences']
+X = df_supported[features]
+y = df_supported['improved']
+X = pd.get_dummies(X, drop_first=True)
+
+# Train Model
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+clf = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=5)
+clf.fit(X_train, y_train)
+
+# Evaluate and plot
+print(f"Model Accuracy: {accuracy_score(y_test, clf.predict(X_test)):.2%}")
+print(classification_report(y_test, clf.predict(X_test)))
+plt.figure(figsize=(10, 6))
+sns.pointplot(data=df_supported, x='Medu', y='improved', hue='address',
+              markers=["o", "s"], linestyles=["-", "--"], palette="Set1", capsize=.1)
+plt.title('Figure 2.3 Trend of Grade Improvement: Interaction of Mother\'s Education & Location')
+plt.xlabel("Mother's Education Level (0-4)")
+plt.ylabel('Probability of Improvement')
+plt.savefig('figures/trend_of_grade_improvement.pdf')
 plt.show()
+print("Figure 2.3 Caption: Trend of Grade Improvement: Interaction of Mother's Education & Location")
 
-print("Bar plot for Mean G3 by Pstatus generated and saved.")
+#Figure 2.4: Heatmap showing Probabailty of Grade improvement in Urban and rural settings with Parent education
 
-#Figure 2.4: Mean Grade by Family Support
-
-# Aggregate for famsup
-mean_g3_by_famsup = grouped_g3_mean.groupby('famsup')['G3'].mean().reset_index()
-
-# Plot for famsup
-plt.figure(figsize=(8, 5))
-sns.barplot(x='famsup', y='G3', data=mean_g3_by_famsup, palette=['#FF6B6B', '#4ECDC4'], hue='famsup', legend=False)
-plt.title('Mean G3 by Family Support (famsup)')
-plt.xlabel('Family Support (no or yes)')
-plt.ylabel('Mean Final Grade (G3)')
-plt.tight_layout()
-plt.savefig('figures/mean_g3_by_famsup.pdf')
-plt.savefig('figures/mean_g3_by_famsup.png') # Save as PNG
+plt.figure(figsize=(8, 6))
+pivot_table = df_supported.pivot_table(index='Medu', columns='address', values='improved', aggfunc='mean')
+sns.heatmap(pivot_table, annot=True, cmap='YlGnBu', fmt='.2f')
+plt.title('Figure 2.4 Heatmap: Probability of Grade Improvement')
+plt.savefig('figures/heatmap_grade_improvement.pdf')
 plt.show()
-
-print("Bar plot for Mean G3 by famsup generated and saved.")
+print("Figure 2.4 Caption: Heatmap showing Probabailty of Grade improvement in Urban and rural settings with Parent education")
 
 #Figure 2.5: Mean Grade by Parental Education and Address generated
 
 # Aggregate data for both Fedu and Medu
 mean_g3_by_fedu_address = df.groupby(['Fedu', 'address'])['G3'].mean().reset_index()
 mean_g3_by_medu_address = df.groupby(['Medu', 'address'])['G3'].mean().reset_index()
-
-# Rename columns for clarity
 mean_g3_by_fedu_address['Education Level'] = mean_g3_by_fedu_address['Fedu']
 mean_g3_by_fedu_address['Parent'] = 'Father'
 mean_g3_by_medu_address['Education Level'] = mean_g3_by_medu_address['Medu']
@@ -782,29 +660,23 @@ combined_data = pd.concat([
     mean_g3_by_medu_address[['Education Level', 'address', 'G3', 'Parent']]
 ])
 
-# Create a combined category for hue
 combined_data['Group'] = combined_data['Parent'] + ' - ' + combined_data['address']
-
-# Create single plot
 plt.figure(figsize=(12, 6))
 sns.lineplot(x='Education Level', y='G3', hue='Parent', style='address',
              data=combined_data, markers=True, markersize=10, linewidth=2.5)
-plt.title('Mean G3 by Parental Education Level and Address', fontsize=16, fontweight='bold')
+plt.title('Figure 2.5 Mean G3 by Parental Education Level and Address', fontsize=16, fontweight='bold')
 plt.xlabel('Education Level (0: none, 1: primary, 2: 5th-9th, 3: secondary, 4: higher)', fontsize=12)
 plt.ylabel('Mean Final Grade (G3)', fontsize=12)
 plt.legend(title='Parent & Address')
 plt.grid(alpha=0.3)
 plt.tight_layout()
-plt.savefig('figures/mean_g3_lineplot.png')
+plt.savefig('figures/mean_g3_lineplot.pdf')
 plt.show()
+print("Figure 2.5 caption: Combined single plot for Mean G3 by Parental Education and Address generated")
 
-print("Combined single plot for Mean G3 by Parental Education and Address generated")
-
-"""### **RQ3**: How fair is the prediction model across student demographic subgroups (gender, parental education, support level)?"""
-
+# RQ3
 #Figure 3.1: Fairness Gap Relative to Overall Model Performance
 
-# --- Start of fix to create Table_3_1_fairness_metrics.csv ---
 # Concatenate fairness results into a single DataFrame expected by the plot
 fair_sex_df = fair_sex.copy()
 fair_sex_df = fair_sex_df.rename(columns={'sex': 'group'})
@@ -858,8 +730,21 @@ print("Figure 3.1 Caption: Relative deviation of subgroup F1-scores from the ove
 
 #Figure 3.2: Subgroup Distribution Heatmap Across Demographics and Education Levels
 
-import matplotlib.pyplot as plt
-import seaborn as sns
+# Re-define X, y, X_test, y_test to ensure they have the full feature set
+# This prevents issues where X_test might have been overwritten by a local train_test_split
+
+# Reload ABT (for reproducibility)
+abt = pd.read_csv("data/processed/abt_student_performance.csv")
+
+target_col = "target_pass"        # 1 = pass (G3 >= 10), 0 = fail
+drop_cols = ["G3", "target_pass"] # drop both final grade and label from features
+
+X = abt.drop(columns=drop_cols)
+y = abt[target_col]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
 
 # Get predictions from the best model (Random Forest)
 y_pred = rf_trained.predict(X_test)
@@ -888,7 +773,7 @@ all_medu_levels = sorted(subgroup_data['Medu'].unique())
 heatmap_data = heatmap_data.reindex(columns=all_medu_levels)
 
 print("F1-scores calculated and pivoted for heatmap generation:")
-display(heatmap_data)
+# display(heatmap_data)
 
 # Generate the heatmap
 plt.figure(figsize=(10, 6))
@@ -900,21 +785,18 @@ sns.heatmap(
     linewidths=.5,
     cbar_kws={'label': 'F1-Score'}
 )
-plt.title('Heatmap showing subgroup distribution differences across demographics and education levels, highlighting potential fairness disparities in the prediction model.')
+plt.title('Figure 3.2: Heatmap showing subgroup distribution differences across demographics and education levels, highlighting potential fairness disparities in the prediction model.')
 plt.xlabel('Maternal Education (Medu)')
 plt.ylabel('Sex')
 
 # Save the heatmap
-heatmap_filename = "figures/subgroup_heatmap_sex_medu.png"
+heatmap_filename = "figures/subgroup_heatmap_sex_medu."
 plt.savefig(heatmap_filename, bbox_inches='tight')
 plt.show()
-print(f"Heatmap saved to {heatmap_filename}")
 
 print("Figure 3.2 Caption: Heatmap showing subgroup distribution differences across demographics and education levels, highlighting potential fairness disparities in the prediction model.")
 
 #Table 3.1: Fairness metrics (e.g., demographic parity difference, equal opportunity) for each subgroup.
-
-from sklearn.metrics import confusion_matrix
 
 # Define functions for fairness metrics
 def demographic_parity_difference(y_true, y_pred, sensitive_attribute, group_a, group_b):
@@ -1001,24 +883,16 @@ if len(medu_groups) >= 2:
 # Create DataFrame for fairness metrics
 fairness_df = pd.DataFrame(fairness_results)
 
-display(fairness_df)
+# display(fairness_df)
 print("Table 3.1 Caption: Fairness metrics across subgroups.\"")
-
 
 #Figure 3.3: Bar plot comparing subgroup performance
 
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-# Ensure f1_scores is a DataFrame and has 'sex', 'Medu', and 'F1_Score' columns
-# (f1_scores was created in the previous heatmap cell)
-
-# Combine 'sex' and 'Medu' for x-axis labels if needed, or plot them separately
 # For simplicity, let's plot F1_Score by sex, with Medu as hue, or vice-versa.
-
 plt.figure(figsize=(12, 7))
 sns.barplot(data=f1_scores, x='Medu', y='F1_Score', hue='sex', palette={'F': 'deeppink', 'M': 'darkgreen'})
-plt.title('Subgroup F1-Score Performance by Sex and Maternal Education')
+plt.title('Figure 3.3: Subgroup F1-Score Performance by Sex and Maternal Education')
 plt.xlabel('Maternal Education Level (Medu)')
 plt.ylabel('F1-Score')
 plt.ylim(0.0, 1.05) # F1-score is between 0 and 1
@@ -1029,14 +903,11 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 barplot_filename = "figures/subgroup_performance_barplot.png"
 plt.savefig(barplot_filename, bbox_inches='tight')
 plt.show()
-print(f"Bar plot saved to {barplot_filename}")
 
-#Caption: “Figure 3.3: Model performance disparities before and after bias mitigation.”
+#Caption: \"Figure 3.3: Model performance disparities before and after bias mitigation.\"
 print("Figure 3.3 Caption: Model performance disparities before and after bias mitigation.\"")
 
-#Figure 3.4: Fairness Evaluation Comparison Across Decision Frameworks.
-
-import matplotlib.pyplot as plt
+##Figure 3.4: Fairness Evaluation Comparison Across Decision Frameworks.
 
 # Melt the fairness_df to prepare for grouped bar plot
 fairness_melted = fairness_df.melt(
@@ -1055,7 +926,7 @@ sns.barplot(
     errorbar=None # No error bars for single values
 )
 
-plt.title('Fairness Evaluation: Demographic Parity Difference and Equal Opportunity Difference')
+plt.title('Figure 3.4: Fairness Evaluation: Demographic Parity Difference and Equal Opportunity Difference')
 plt.xlabel('Sensitive Attribute')
 plt.ylabel('Metric Value')
 plt.axhline(0, color='gray', linestyle='--', linewidth=0.8) # Reference line at zero for difference metrics
@@ -1067,37 +938,28 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 figure_filename = "figures/fairness_evaluation_comparison.png"
 plt.savefig(figure_filename, bbox_inches='tight')
 plt.show()
-print(f"Figure saved to {figure_filename}")
 
-#Caption: “Comparison of fairness evaluation scores across two frameworks, illustrating differences relevant to subgroup fairness.”
+#Caption: \"Comparison of fairness evaluation scores across two frameworks, illustrating differences relevant to subgroup fairness.\"
 print("Figure 3.4 Caption: \"Comparison of fairness evaluation scores across two frameworks, illustrating differences relevant to subgroup fairness.\"")
 
-"""### **RQ4**: Which features (attendance, demographics, study habits) most strongly predict final academic performance?"""
+# RQ4
+##Figure 4.1: Feature Stability Map Across Cross-Validation Folds
 
-# Figure 4.1: Feature Stability Map Across Cross-Validation Folds
-
-from sklearn.model_selection import StratifiedKFold
-
-# --- Assumptions (based on your notebook) ---
-# rf_trained = trained RandomForest pipeline: Pipeline([("preprocess", ...), ("model", RandomForestClassifier(...))])
-# X_train, X_test, y_train, y_test exist
-# preprocess = rf_trained.named_steps["preprocess"]  (already in your notebook earlier)
-
-# 1) Get transformed feature names safely (works across sklearn versions)
+#Get transformed feature names safely (works across sklearn versions)
 preprocess = rf_trained.named_steps["preprocess"]
 try:
     feat_names = preprocess.get_feature_names_out()
-except Exception:
-    # fallback if feature names are not available
-    # will still work but names become f_0, f_1, ...
-    n_out = rf_trained.named_steps["model"].n_features_in_
-    feat_names = np.array([f"f_{i}" for i in range(n_out)])
+except AttributeError:
+    all_feature_names = np.array(
+        [f"feat_{i}" for i in range(perm_result.importances_mean.shape[0])]
+    )
 
-# 2) Create a stratified CV on training data (classification)
+from sklearn.model_selection import StratifiedKFold
+#Create a stratified CV on training data (classification)
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-# 3) Compute permutation importance per fold (on validation split)
-#    Important: use the FULL pipeline but calculate importance on X_valid, y_valid
+#Compute permutation importance per fold (on validation split)
+#Important: use the FULL pipeline but calculate importance on X_valid, y_valid
 fold_imps = []
 for fold_id, (tr_idx, va_idx) in enumerate(cv.split(X_train, y_train), start=1):
     X_tr, X_va = X_train.iloc[tr_idx], X_train.iloc[va_idx]
@@ -1120,10 +982,10 @@ for fold_id, (tr_idx, va_idx) in enumerate(cv.split(X_train, y_train), start=1):
 
 imp_mat = np.vstack(fold_imps)  # shape: (folds, features)
 
-# 4) Standardize importance per fold for fair comparison (z-score within each fold)
+#Standardize importance per fold for fair comparison (z-score within each fold)
 imp_z = (imp_mat - imp_mat.mean(axis=1, keepdims=True)) / (imp_mat.std(axis=1, keepdims=True) + 1e-9)
 
-# 5) Select Top-K stable features (high mean + low variance is “stable”)
+#Select Top-K stable features (high mean + low variance is “stable”)
 mean_imp = imp_mat.mean(axis=0)
 std_imp  = imp_mat.std(axis=0)
 stability_score = mean_imp / (std_imp + 1e-9)
@@ -1137,10 +999,10 @@ heat_df = pd.DataFrame(
     columns=[f"Fold {i}" for i in range(1, imp_z.shape[0] + 1)]
 )
 
-# 6) Plot heatmap
+#Plot heatmap
 plt.figure(figsize=(10, 8))
 sns.heatmap(heat_df, cmap="viridis", linewidths=0.3, linecolor="white")
-plt.title("Figure 4.6: Feature Stability Map Across Cross-Validation Folds", pad=12)
+plt.title("Figure 4.1: Feature Stability Map Across Cross-Validation Folds", pad=12)
 plt.xlabel("Cross-Validation Folds")
 plt.ylabel("Top Stable Features (Permutation Importance)")
 plt.tight_layout()
@@ -1149,11 +1011,9 @@ out_path = "figures/Figure_4_6_feature_stability_heatmap.png"
 plt.savefig(out_path, dpi=300)
 plt.show()
 
-print('Saved:', out_path)
 print('Figure 4.1 Caption: "Heatmap of the top predictive features ranked by stability across cross-validation folds. Each row is a feature and each column is a fold; cell values show standardized permutation importance. Features that remain strong across folds indicate more reliable drivers of final academic performance (G3)."')
 
 #Figure 4.2: Performance Comparison of Feature-Fusion Models
-import matplotlib.pyplot as plt
 
 # Define the metrics for each model based on previous evaluation results
 metrics_data = {
@@ -1175,7 +1035,7 @@ performance_df = pd.DataFrame(metrics_data)
 
 plt.figure(figsize=(12, 7))
 sns.barplot(data=performance_df, x='Metric', y='Value', hue='Model', palette=['Blue', 'red'])
-plt.title('Performance Comparison of Logistic Regression vs. Random Forest Models')
+plt.title('Figure 4.2: Performance Comparison of Logistic Regression vs. Random Forest Models')
 plt.xlabel('Evaluation Metric')
 plt.ylabel('Score')
 plt.ylim(0.8, 1.0) # Set appropriate y-axis limits for score values
@@ -1186,15 +1046,11 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 figure_filename = "figures/performance_comparison_feature_fusion.png"
 plt.savefig(figure_filename, bbox_inches='tight')
 plt.show()
-print(f"Figure saved to {figure_filename}")
 
-#Caption: “Accuracy, precision, recall, and F1-score results for different feature-fusion models, illustrating how combined predictors improve academic performance estimation.”
+#Caption: \"Accuracy, precision, recall, and F1-score results for different feature-fusion models, illustrating how combined predictors improve academic performance estimation.\"
 print("Figure 4.2 Caption: \"Accuracy, precision, recall, and F1-score results for different feature-fusion models, illustrating how combined predictors improve academic performance estimation.\"")
 
 #Figure 4.3: Confusion Matrix Comparison Across Models
-
-import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix
 
 # Get predictions from both trained models
 y_pred_log_reg = log_reg_trained.predict(X_test)
@@ -1217,7 +1073,7 @@ sns.heatmap(
     xticklabels=['Predicted Fail', 'Predicted Pass'],
     yticklabels=['Actual Fail', 'Actual Pass']
 )
-axes[0].set_title('Logistic Regression Confusion Matrix')
+axes[0].set_title('Figure 4.3: Logistic Regression Confusion Matrix')
 axes[0].set_xlabel('Predicted Label')
 axes[0].set_ylabel('True Label')
 
@@ -1241,16 +1097,13 @@ plt.tight_layout()
 figure_filename = "figures/confusion_matrix_comparison.png"
 plt.savefig(figure_filename, bbox_inches='tight')
 plt.show()
-print(f"Figure saved to {figure_filename}")
 
-#Caption: “Confusion matrices showing how different feature-selection methods affect model prediction performance.”
+#Caption: \"Confusion matrices showing how different feature-selection methods affect model prediction performance.\"
 print("Figure 4.3 Caption: \"Confusion matrices showing how different models perform on academic performance prediction.\"")
 
 #Figure 4.4: Model Runtime Comparison Across Iterations
 
 import time
-import matplotlib.pyplot as plt
-
 runtime_data = []
 
 # Measure training and prediction time for Logistic Regression
@@ -1297,7 +1150,7 @@ rw_runtime_df = pd.DataFrame(runtime_data)
 
 plt.figure(figsize=(10, 6))
 sns.barplot(data=rw_runtime_df, x='Metric', y='Value', hue='Model', palette='rocket')
-plt.title('Model Runtime Comparison: Training vs. Prediction')
+plt.title('Figure 4.4: Model Runtime Comparison: Training vs. Prediction')
 plt.xlabel('Runtime Metric')
 plt.ylabel('Time (seconds)')
 plt.legend(title='Model')
@@ -1307,9 +1160,8 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 figure_filename = "figures/model_runtime_comparison.png"
 plt.savefig(figure_filename, bbox_inches='tight')
 plt.show()
-print(f"Figure saved to {figure_filename}")
 
-#Caption: “Runtime curves for multiple prediction models, showing computational differences when evaluating fused academic features."
+#Caption: \"Runtime curves for multiple prediction models, showing computational differences when evaluating fused academic features.\"
 print("Figure 4.4 Caption: \"Runtime curves for multiple prediction models, showing computational differences when evaluating fused academic features.\"")
 
 #Figure 4.5: Perceived Impact of Predictive Features on Academic Performance
@@ -1317,7 +1169,6 @@ print("Figure 4.4 Caption: \"Runtime curves for multiple prediction models, show
 rf_model = rf_trained.named_steps['model']
 feature_importances = rf_model.feature_importances_
 
-# Get feature names from the preprocessor
 # The preprocessor contains 'num' for numeric and 'cat' for categorical features
 preprocessor = rf_trained.named_steps['preprocess']
 
@@ -1339,8 +1190,7 @@ importance_df = pd.DataFrame({
 # Sort by importance in descending order
 importance_df = importance_df.sort_values(by='Importance', ascending=False)
 
-# Select top N features for better visualization if there are too many
-# For simplicity, let's plot all for now or a reasonable top number
+# Select top N features for better visualization if there are too many, for simplicity, let's plot all for now or a reasonable top number
 top_n = 20 # Adjust as needed
 if len(importance_df) > top_n:
     importance_df_plot = importance_df.head(top_n)
@@ -1349,7 +1199,7 @@ else:
 
 plt.figure(figsize=(12, 8))
 sns.barplot(x='Importance', y='Feature', hue='Feature', data=importance_df_plot, palette='viridis', legend=False)
-plt.title('Top Predictive Features on Academic Performance (Random Forest)')
+plt.title('Figure 4.5: Top Predictive Features on Academic Performance (Random Forest)')
 plt.xlabel('Feature Importance')
 plt.ylabel('Feature')
 plt.tight_layout()
@@ -1358,7 +1208,6 @@ plt.tight_layout()
 figure_filename = "figures/feature_importance_impact.png"
 plt.savefig(figure_filename, bbox_inches='tight')
 plt.show()
-print(f"Figure saved to {figure_filename}")
 
-# Figure 4.5 Caption: “Stacked distribution illustrating perceived influence of key features on academic performance, highlighting which factors contribute most strongly to prediction outcomes.”
+# Figure 4.5 Caption: \"Stacked distribution illustrating perceived influence of key features on academic performance, highlighting which factors contribute most strongly to prediction outcomes.\"
 print("Caption: \"Stacked distribution illustrating perceived influence of key features on academic performance, highlighting which factors contribute most strongly to prediction outcomes.\"")
